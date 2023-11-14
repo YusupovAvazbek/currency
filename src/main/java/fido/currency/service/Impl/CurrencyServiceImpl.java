@@ -16,14 +16,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
-import static fido.currency.service.additional.AppStatusCodes.DATABASE_ERROR_CODE;
-import static fido.currency.service.additional.AppStatusCodes.OK_CODE;
+import static fido.currency.service.additional.AppStatusCodes.*;
 import static javax.security.auth.callback.ConfirmationCallback.OK;
 
 @Service
 @RequiredArgsConstructor
 public class CurrencyServiceImpl implements CurrencyService {
+    public static final String DATE_SORT_PROPERTY = "Ccy";
     private final CurrencyRepository currencyRepository;
     private final CurrencyMapper currencyMapper;
     @Override
@@ -32,7 +33,7 @@ public class CurrencyServiceImpl implements CurrencyService {
             page = Integer.max(page, 0);
             size = Integer.max(size, 0);
 
-            Pageable pageable = PageRequest.of(page, size, Sort.by("date").descending());
+            Pageable pageable = PageRequest.of(page, size, Sort.by(DATE_SORT_PROPERTY).descending());
 
             List<Currency> all = currencyRepository.findAllByOrderByDateDesc(pageable);
             return ApiResult.<List<CurrencyDto>>builder()
@@ -54,12 +55,18 @@ public class CurrencyServiceImpl implements CurrencyService {
                     .code(OK)
                     .build();
         }
-        Currency currency = currencyRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Currency rate not found with id " + id));
+        Optional<Currency> byId = currencyRepository.findById(id);
+        if(byId.isEmpty()){
+            return ApiResult.<CurrencyDto>builder()
+                    .code(NOT_FOUND_ERROR_CODE)
+                    .message(AppStatusMessages.NOT_FOUND)
+                    .build();
+        }
+
         return ApiResult.<CurrencyDto>builder()
                 .code(OK_CODE)
                 .message(AppStatusMessages.OK)
-                .data(currencyMapper.toDto(currency))
+                .data(currencyMapper.toDto(byId.get()))
                 .build();
     }
 }

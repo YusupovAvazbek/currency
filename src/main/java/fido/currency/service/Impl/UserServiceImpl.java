@@ -8,15 +8,12 @@ import fido.currency.repository.UserRepository;
 import fido.currency.security.JwtService;
 import fido.currency.service.UserService;
 import fido.currency.service.additional.AppStatusCodes;
-import fido.currency.service.additional.AppStatusMessages;
 import fido.currency.service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -27,6 +24,7 @@ import static fido.currency.service.additional.AppStatusMessages.*;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService, UserDetailsService {
+    public static final String USER_ROLE = "USER";
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
@@ -42,7 +40,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
                         .build();
             }
             User user = userMapper.toEntity(userDto);
-            user.setRole("USER");
+            user.setRole(USER_ROLE);
             userRepository.save(user);
             return ApiResult.<UserDto>builder()
                     .data(userMapper.toDto(user))
@@ -84,7 +82,6 @@ public class UserServiceImpl implements UserService, UserDetailsService {
             return ApiResult.<UserDto>builder()
                     .message(NULL_VALUE)
                     .code(VALIDATION_ERROR_CODE)
-                    .data(userDto)
                     .build();
         }
         try {
@@ -109,7 +106,7 @@ public class UserServiceImpl implements UserService, UserDetailsService {
                 }
             }
             if(userDto.getPassword() != null){
-                updatedUser.setPassword(userDto.getPassword());
+                updatedUser.setPassword(passwordEncoder.encode(userDto.getPassword()));
             }
 
             userRepository.save(updatedUser);
@@ -170,10 +167,10 @@ public class UserServiceImpl implements UserService, UserDetailsService {
 
     @Override
     public UserDto loadUserByUsername(String username) throws UsernameNotFoundException {
-        Optional<User> users = userRepository.findByUsername(username);
-        if(users.isEmpty()) throw new UsernameNotFoundException("user is not found");
-
-        return userMapper.toDto(users.get());
+        Optional<User> userOptional = userRepository.findByUsername(username);
+        return userOptional
+                .map(userMapper::toDto)
+                .orElseThrow(() -> new UsernameNotFoundException(NOT_FOUND + username));
     }
     public ApiResult<String> login(LoginDto loginDto) {
         UserDto users = loadUserByUsername(loginDto.getUsername());
